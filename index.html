@@ -217,12 +217,36 @@
         msg.style.display = 'block';
         setTimeout(() => msg.style.display = 'none', 4000);
     }
+function simularNuevoDatoArduino() {
+    function cargarDatosReales() {
+    fetch(API_URL)
+        .then(res => res.json())
+        .then(datos => {
+            if (datos.length === 0) return;
+            const ultimo = datos[0];
+            const ahora = new Date().toLocaleTimeString();
+            const vibracion = parseFloat(ultimo.vibracion);
 
+            myChart.data.labels.push(ahora);
+            myChart.data.datasets[0].data.push(vibracion);
+            if (myChart.data.labels.length > 20) {
+                myChart.data.labels.shift();
+                myChart.data.datasets[0].data.shift();
+            }
+            myChart.update('none');
+
+            document.getElementById('valor-pico').innerText = vibracion.toFixed(2) + ' G';
+            document.getElementById('valor-rms').innerText = (vibracion * 0.707).toFixed(2) + ' G';
+            document.getElementById('ultima-lectura').innerText = ultimo.fecha_hora;
+        })
+        .catch(err => console.error('Error cargando datos:', err));
+    }
+}
     // --- Inicio ---
     setInterval(actualizarHora, 1000);
-    setInterval(simularNuevoDatoArduino, 2000);
+    setInterval(cargarDatosReales, 3000); // ← cada 3 segundos consulta la BD
     actualizarHora();
-    simularNuevoDatoArduino();
+    cargarDatosReales();
     cargarHistorial();
 </script>
 
