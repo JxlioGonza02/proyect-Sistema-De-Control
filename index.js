@@ -1,8 +1,11 @@
 const express = require('express');
 const mysql   = require('mysql2');
 const cors    = require('cors');
+const multer  = require('multer');
 
-const app = express();
+const app    = express();
+const upload = multer();
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -30,7 +33,7 @@ db.connect((err) => {
 // ==============================
 // POST /api - Recibe datos del ESP32
 // ==============================
-app.post('/api', (req, res) => {
+app.post('/api', upload.none(), (req, res) => {
     const {
         motor1_estado = 0,
         motor1_rpm    = 0,
