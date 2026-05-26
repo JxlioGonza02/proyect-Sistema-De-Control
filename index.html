@@ -31,183 +31,135 @@
         #msg-estado { margin-top: 10px; padding: 8px; border-radius: 4px; text-align: center; display: none; }
         #msg-estado.ok { background: #d4edda; color: #155724; }
         #msg-estado.error { background: #f8d7da; color: #721c24; }
+        .valor-actual { font-size: 24px; font-weight: bold; color: #007bff; text-align: center; margin: 10px 0; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header-info">Hora Actual: <span id="hora-actual">--:--:--</span></div>
-    <h1>MONITOREO DE VIBRACIÓN</h1>
+    <h1>🏢 MONITOREO DE VIBRACIÓN - EDIFICIO</h1>
     
     <div class="main-layout">
-        <!-- SECCIÓN DE LA GRÁFICA -->
         <div class="chart-section">
-            <h3 style="text-align:center;">DATO SÍSMICO DEL EDIFICIO: GRÁFICA AISLADA DE VIBRACIÓN</h3>
+            <h3 style="text-align:center;">GRÁFICA DE VIBRACIÓN EN VIVO</h3>
             <canvas id="vibracionChart" width="600" height="300"></canvas>
+            <div class="valor-actual" id="valor-ax">Eje X: ---</div>
         </div>
 
-        <!-- SECCIÓN DE DATOS Y REGISTRO -->
         <div class="control-panel">
-            <div class="data-item"><span class="data-label">VALOR PICO:</span> <span id="valor-pico">0.00 G</span></div>
-            <div class="data-item"><span class="data-label">VALOR RMS:</span> <span id="valor-rms">0.00 G</span></div>
-            <div class="data-item"><span class="data-label">ÚLTIMA LECTURA:</span> <span id="ultima-lectura">--:--:--</span></div>
+            <div class="data-item"><span class="data-label">VALOR PICO X:</span> <span id="valor-pico">0.00 G</span></div>
+            <div class="data-item"><span class="data-label">ÚLTIMA ACTUALIZACIÓN:</span> <span id="ultima-lectura">--:--:--</span></div>
             
-            <button class="secondary" onclick="cargarHistorial()">REGISTRAR DATOS</button>
-
             <div class="form-group">
                 <label>ANOTACIONES:</label>
                 <textarea id="anotaciones" placeholder="Escribe una nota..."></textarea>
             </div>
-            <div class="form-group">
-                <label>SENSOR ID:</label>
-                <input type="text" id="sensor-id" value="101">
-            </div>
-            <div class="form-group">
-                <label>TIPO DE EVENTO:</label>
-                <select id="tipo-evento">
-                    <option value="">[Menú desplegable]</option>
-                    <option value="Trafico">Tráfico</option>
-                    <option value="Viento">Viento</option>
-                    <option value="Prueba">Prueba</option>
-                </select>
-            </div>
 
-            <button onclick="guardarEnBaseDeDatos()">GUARDAR EN BASE DE DATOS</button>
             <div id="msg-estado"></div>
         </div>
     </div>
 
-    <!-- SECCIÓN DE LA TABLA -->
     <div class="table-section">
         <h3>Historial de Registros</h3>
         <table id="tabla-registros">
             <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>FECHA Y HORA</th>
-                    <th>VIBRACIÓN (G)</th>
-                    <th>MOTOR 1</th>
-                    <th>MOTOR 2</th>
-                    <th>ALERTA</th>
-                </tr>
+                <tr><th>ID</th><th>FECHA Y HORA</th><th>AX</th><th>AY</th><th>AZ</th><th>ESTADO</th></tr>
             </thead>
-            <tbody id="cuerpo-tabla">
-                <tr><td colspan="6" style="text-align:center; color:#999;">Cargando registros...</td></tr>
-            </tbody>
+            <tbody id="cuerpo-tabla"><tr><td colspan="6" style="text-align:center;">Cargando...</td></tr></tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // *** CAMBIA ESTA URL si tu PC tiene otra IP ***
-   const API_URL = 'https://proyect-sistema-de-control.onrender.com/api';
+    // ✅ URL CORRECTA de tu API
+    const API_URL = 'https://proyect-sistema-de-control.onrender.com/api.php';
+    
+    let datosHistoricos = [];
 
-    // --- Configuración de la Gráfica ---
+    // Configuración de la gráfica
     const ctx = document.getElementById('vibracionChart').getContext('2d');
-    const dataVibracion = {
-        labels: [],
-        datasets: [{
-            label: 'Vibración Detectada (G)',
-            data: [],
-            borderColor: '#007bff',
-            backgroundColor: 'rgba(0, 123, 255, 0.1)',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.3
-        }]
-    };
     const myChart = new Chart(ctx, {
         type: 'line',
-        data: dataVibracion,
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Vibración (Eje X)',
+                data: [],
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
         options: {
             responsive: true,
-            scales: {
-                x: { title: { display: true, text: 'TIEMPO (HORA)' } },
-                y: { title: { display: true, text: 'VIBRACIÓN (G)' }, min: 0, max: 1.2 }
-            }
+            scales: { y: { title: { display: true, text: 'VIBRACIÓN (G)' } } }
         }
     });
 
-    // --- Actualizar reloj ---
     function actualizarHora() {
         document.getElementById('hora-actual').innerText = new Date().toLocaleTimeString();
     }
 
-    // --- Simulación de datos (se reemplaza cuando conectes el ESP32) ---
-    function simularNuevoDatoArduino() {
-        const ahora = new Date();
-        const horaString = ahora.getHours() + ':' + String(ahora.getMinutes()).padStart(2,'0') + ':' + String(ahora.getSeconds()).padStart(2,'0');
-        const nuevoValor = (Math.random() * 0.9 + 0.1).toFixed(2);
-        const nuevoValorPico = Math.min((parseFloat(nuevoValor) + (Math.random()*0.2)), 1.2).toFixed(2);
-
-        myChart.data.labels.push(horaString);
-        myChart.data.datasets[0].data.push(nuevoValor);
-        if (myChart.data.labels.length > 20) {
-            myChart.data.labels.shift();
-            myChart.data.datasets[0].data.shift();
+    // ✅ Función que carga datos REALES desde tu API
+    async function cargarDatosReales() {
+        try {
+            const respuesta = await fetch(API_URL);
+            let datos = await respuesta.json();
+            
+            // Si la API devuelve un array, tomar el último elemento
+            if (Array.isArray(datos) && datos.length > 0) {
+                datosHistoricos = datos;
+                const ultimo = datos[datos.length - 1];
+                
+                // Mostrar valores actuales
+                document.getElementById('valor-ax').innerHTML = `Eje X: ${ultimo.ax || 0} | Eje Y: ${ultimo.ay || 0} | Eje Z: ${ultimo.az || 0}`;
+                document.getElementById('valor-pico').innerHTML = `${Math.abs(ultimo.ax || 0).toFixed(2)} G`;
+                document.getElementById('ultima-lectura').innerHTML = new Date().toLocaleTimeString();
+                
+                // Actualizar gráfica con el valor de X
+                const hora = new Date().toLocaleTimeString();
+                myChart.data.labels.push(hora);
+                myChart.data.datasets[0].data.push(Math.abs(ultimo.ax || 0));
+                
+                if (myChart.data.labels.length > 20) {
+                    myChart.data.labels.shift();
+                    myChart.data.datasets[0].data.shift();
+                }
+                myChart.update();
+                
+                // Actualizar tabla
+                actualizarTabla(datos.slice(-10).reverse());
+                
+                mostrarMensaje('✅ Datos actualizados', 'ok');
+            } else {
+                mostrarMensaje('⏳ Esperando datos del ESP32...', 'ok');
+            }
+        } catch(error) {
+            console.error('Error:', error);
+            mostrarMensaje('❌ Error al conectar con el servidor', 'error');
         }
-        myChart.update('none');
-
-        document.getElementById('valor-pico').innerText = nuevoValorPico + ' G';
-        document.getElementById('valor-rms').innerText = (nuevoValor * 0.707).toFixed(2) + ' G';
-        document.getElementById('ultima-lectura').innerText = horaString;
     }
 
-    // --- Guardar en base de datos real ---
-    function guardarEnBaseDeDatos() {
-        const vibracion = parseFloat(document.getElementById('valor-pico').innerText);
-        const hora = document.getElementById('ultima-lectura').innerText;
-
-        if (hora === '--:--:--') {
-            mostrarMensaje('Aún no hay datos para guardar.', 'error');
+    function actualizarTabla(datos) {
+        const tbody = document.getElementById('cuerpo-tabla');
+        if (!datos || datos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay registros</td></tr>';
             return;
         }
-
-        const formData = new FormData();
-        formData.append('motor1_estado', 1);
-        formData.append('motor1_rpm', 1500);
-        formData.append('motor2_estado', 1);
-        formData.append('motor2_rpm', 1500);
-        formData.append('vibracion', vibracion);
-
-        fetch(API_URL, { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    mostrarMensaje('✔ Guardado correctamente (ID: ' + data.id + ')', 'ok');
-                    cargarHistorial();
-                } else {
-                    mostrarMensaje('Error: ' + JSON.stringify(data), 'error');
-                }
-            })
-            .catch(() => mostrarMensaje('No se pudo conectar al servidor.', 'error'));
-    }
-
-    // --- Cargar historial desde la base de datos ---
-    function cargarHistorial() {
-        fetch(API_URL)
-            .then(res => res.json())
-            .then(datos => {
-                const tbody = document.getElementById('cuerpo-tabla');
-                if (datos.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#999;">No hay registros aún.</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = datos.map(r => `
-                    <tr>
-                        <td>${r.id}</td>
-                        <td>${r.fecha_hora}</td>
-                        <td>${r.vibracion} G</td>
-                        <td>${r.motor1_estado ? 'ON' : 'OFF'} (${r.motor1_rpm} rpm)</td>
-                        <td>${r.motor2_estado ? 'ON' : 'OFF'} (${r.motor2_rpm} rpm)</td>
-                        <td style="color:${r.alerta ? 'red' : 'green'}">${r.alerta ? '⚠ ALERTA' : 'Normal'}</td>
-                    </tr>
-                `).join('');
-            })
-            .catch(() => {
-                document.getElementById('cuerpo-tabla').innerHTML =
-                    '<tr><td colspan="6" style="text-align:center; color:red;">Error al cargar datos.</td></tr>';
-            });
+        
+        tbody.innerHTML = datos.map(r => `
+            <tr>
+                <td>${r.id || '-'}</td>
+                <td>${r.fecha_hora || r.timestamp || '-'}</td>
+                <td>${r.ax || 0}</td>
+                <td>${r.ay || 0}</td>
+                <td>${r.az || 0}</td>
+                <td>${Math.abs(r.ax || 0) > 500 ? '⚠ ALERTA' : '✅ Normal'}</td>
+            </tr>
+        `).join('');
     }
 
     function mostrarMensaje(texto, tipo) {
@@ -215,40 +167,15 @@
         msg.innerText = texto;
         msg.className = tipo;
         msg.style.display = 'block';
-        setTimeout(() => msg.style.display = 'none', 4000);
+        setTimeout(() => msg.style.display = 'none', 3000);
     }
-function simularNuevoDatoArduino() {
-    function cargarDatosReales() {
-    fetch(API_URL)
-        .then(res => res.json())
-        .then(datos => {
-            if (datos.length === 0) return;
-            const ultimo = datos[0];
-            const ahora = new Date().toLocaleTimeString();
-            const vibracion = parseFloat(ultimo.vibracion);
 
-            myChart.data.labels.push(ahora);
-            myChart.data.datasets[0].data.push(vibracion);
-            if (myChart.data.labels.length > 20) {
-                myChart.data.labels.shift();
-                myChart.data.datasets[0].data.shift();
-            }
-            myChart.update('none');
-
-            document.getElementById('valor-pico').innerText = vibracion.toFixed(2) + ' G';
-            document.getElementById('valor-rms').innerText = (vibracion * 0.707).toFixed(2) + ' G';
-            document.getElementById('ultima-lectura').innerText = ultimo.fecha_hora;
-        })
-        .catch(err => console.error('Error cargando datos:', err));
-    }
-}
-    // --- Inicio ---
+    // Iniciar todo
     setInterval(actualizarHora, 1000);
-    setInterval(cargarDatosReales, 3000); // ← cada 3 segundos consulta la BD
+    setInterval(cargarDatosReales, 2000); // Actualizar cada 2 segundos
+    
     actualizarHora();
     cargarDatosReales();
-    cargarHistorial();
 </script>
-
 </body>
 </html>
